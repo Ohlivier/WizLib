@@ -7,4 +7,7 @@ public class LightConstants {
         public static final int MAX_RGB = 255;
         public static final int MIN_RGB = 0;
         public static final int RECEIVE_BUFFER_SIZE = 1024;
+        public static final int SOCKET_TIMEOUT_MS = 1000;
+
+
 }

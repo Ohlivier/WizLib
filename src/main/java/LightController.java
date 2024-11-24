@@ -5,12 +5,9 @@ import java.net.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.LoggerFactory;
-import org.slf4j.Logger;
 
 public class LightController implements AutoCloseable {
 
-    private static final Logger logger = LoggerFactory.getLogger(LightController.class);
     private final DatagramSocket socket;
     private final InetAddress address;
     private final ObjectMapper objectMapper;
@@ -26,6 +23,18 @@ public class LightController implements AutoCloseable {
             socket = new DatagramSocket();
             String LIGHT_IP = ip.get("ip").asText();
             address = InetAddress.getByName(LIGHT_IP);
+            socket.setSoTimeout(LightConstants.SOCKET_TIMEOUT_MS);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public LightController(String lightIP) {
+        objectMapper = new ObjectMapper();
+        try {
+            socket = new DatagramSocket();
+            address = InetAddress.getByName(lightIP);
+            socket.setSoTimeout(LightConstants.SOCKET_TIMEOUT_MS);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -77,7 +86,6 @@ public class LightController implements AutoCloseable {
      */
     public boolean is_light_on() {
         JsonNode status = create_jsonNode_from_status();
-        logger.info("Light turned on");
         return status.get("result").get("state").asBoolean();
     }
 
