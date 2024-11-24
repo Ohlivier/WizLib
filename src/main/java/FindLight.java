@@ -169,11 +169,11 @@ public class FindLight {
      */
     public void testLightColorSequence(LightController light) {
         try {
-            light.set_light_color(0, 0, 255);  // Blue
+            light.setLightColor(0, 0, 255);  // Blue
             Thread.sleep(DELAY_LIGHT_COLOR_SWITCH);
-            light.set_light_color(0, 255, 0);  // Green
+            light.setLightColor(0, 255, 0);  // Green
             Thread.sleep(DELAY_LIGHT_COLOR_SWITCH);
-            light.set_light_color(255, 0, 0);  // Red
+            light.setLightColor(255, 0, 0);  // Red
             Thread.sleep(DELAY_LIGHT_COLOR_SWITCH);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);

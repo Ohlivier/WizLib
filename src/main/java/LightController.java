@@ -12,10 +12,17 @@ public class LightController implements AutoCloseable {
     private final InetAddress address;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Connects to WIZ light using the IP key in lights.json
+     */
     public LightController() {
         this(new File("lights.json"));
     }
 
+    /**
+     * Connects to WIZ light using a given JSON config file
+     * @param jsonIpFile JSON config file containing the key ip
+     */
     public LightController(File jsonIpFile) {
         objectMapper = new ObjectMapper();
         try {
@@ -29,6 +36,10 @@ public class LightController implements AutoCloseable {
         }
     }
 
+    /**
+     * Connects to a WIZ light using a given ip
+     * @param lightIP IP of the light of which you wish to connect to
+     */
     public LightController(String lightIP) {
         objectMapper = new ObjectMapper();
         try {
@@ -40,8 +51,12 @@ public class LightController implements AutoCloseable {
         }
     }
 
-
-    private String send_command(String command) {
+    /**
+     * Sends a UDP command to the WIZ light
+     * @param command Command that should be sent to the WIZ light
+     * @return The response of the UDP command
+     */
+    private String sendCommand(String command) {
         byte[] buf = command.getBytes();
         DatagramPacket packet = new DatagramPacket(buf, buf.length, address, LightConstants.PORT);
         try {
@@ -55,9 +70,13 @@ public class LightController implements AutoCloseable {
         return new String(packet.getData(), 0, packet.getLength());
     }
 
-    private JsonNode create_jsonNode_from_status() {
+    /**
+     * Creates a JsonNode with help of the getLightStatus() method
+     * @return JsonNode of getLightStatus()
+     */
+    private JsonNode createJsonNodeFromStatus() {
         try {
-            return objectMapper.readTree(get_light_status());
+            return objectMapper.readTree(getLightStatus());
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -68,11 +87,11 @@ public class LightController implements AutoCloseable {
      *
      * @return current brightness of the WIZ light (10-100)
      */
-    public int get_current_brightness() {
-        if (!is_light_on()) {
+    public int getCurrentBrightness() {
+        if (!isLightOn()) {
             return 0;
         } else {
-            JsonNode status = create_jsonNode_from_status();
+            JsonNode status = createJsonNodeFromStatus();
             return status.get("result").get("dimming").asInt();
         }
     }
@@ -84,40 +103,40 @@ public class LightController implements AutoCloseable {
      *
      * @return current state of WIZ light (boolean)
      */
-    public boolean is_light_on() {
-        JsonNode status = create_jsonNode_from_status();
+    public boolean isLightOn() {
+        JsonNode status = createJsonNodeFromStatus();
         return status.get("result").get("state").asBoolean();
     }
 
     /**
      * Prints the current status of the WIZ light
      */
-    private String get_light_status() {
-        return send_command("{\"method\":\"getPilot\",\"params\":{}}\n");
+    private String getLightStatus() {
+        return sendCommand("{\"method\":\"getPilot\",\"params\":{}}\n");
     }
 
     /**
      * Turns the WIZ light on
      */
-    public void turn_light_on() {
-        send_command("{\"id\":1,\"method\":\"setState\",\"params\":{\"state\":true}}\n");
+    public void turnLightOn() {
+        sendCommand("{\"id\":1,\"method\":\"setState\",\"params\":{\"state\":true}}\n");
     }
 
     /**
      * Turns the WIZ light off
      */
-    public void turn_light_off() {
-        send_command("{\"id\":1,\"method\":\"setState\",\"params\":{\"state\":false}}\n");
+    public void turnLightOff() {
+        sendCommand("{\"id\":1,\"method\":\"setState\",\"params\":{\"state\":false}}\n");
     }
 
-    public void set_brightness(int brightness) {
-        if (!is_light_on()) {
+    public void setBrightness(int brightness) {
+        if (!isLightOn()) {
             System.out.println("Light is not on, cannot currently change the brightness");
             return;
         }
 
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"dimming\":%d}}", brightness);
-        send_command(command);
+        sendCommand(command);
     }
 
     /**
@@ -127,11 +146,11 @@ public class LightController implements AutoCloseable {
      * @param g The green RGB value (0-255)
      * @param b The blue RGB value (0-255)
      */
-    public void set_light_color(int r, int g, int b) {
-        validate_rgb(r, g, b);
+    public void setLightColor(int r, int g, int b) {
+        validateRgb(r, g, b);
 
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"r\":%d,\"g\":%d,\"b\":%d}}", r, g, b);
-        send_command(command);
+        sendCommand(command);
     }
 
     /**
@@ -142,12 +161,12 @@ public class LightController implements AutoCloseable {
      * @param b          The blue RGB value (0-255)
      * @param brightness The brightness (10-100)
      */
-    public void set_light_color(int r, int g, int b, int brightness) {
-        validate_rgb(r, g, b);
-        validate_brightness(brightness);
+    public void setLightColor(int r, int g, int b, int brightness) {
+        validateRgb(r, g, b);
+        validateBrightness(brightness);
 
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"r\":%d,\"g\":%d,\"b\":%d,\"dimming\": %d}}", r, g, b, brightness);
-        send_command(command);
+        sendCommand(command);
     }
 
 
@@ -156,11 +175,11 @@ public class LightController implements AutoCloseable {
      *
      * @param temp Temperature in kelvin (2200-6200)
      */
-    public void set_light_kelvin(int temp) {
-        validate_temperature(temp);
+    public void setLightKelvin(int temp) {
+        validateTemperature(temp);
 
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"temp\":%d}}\n", temp);
-        send_command(command);
+        sendCommand(command);
     }
 
 
@@ -170,15 +189,21 @@ public class LightController implements AutoCloseable {
      * @param temp       Temperature in kelvin (2200-6200)
      * @param brightness The brightness (10-100)
      */
-    public void set_light_kelvin_brightness(int temp, int brightness) {
-        validate_temperature(temp);
-        validate_brightness(brightness);
+    public void setLightKelvinBrightness(int temp, int brightness) {
+        validateTemperature(temp);
+        validateBrightness(brightness);
 
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"temp\":%d,\"dimming\":%d}}\n", temp, brightness);
-        send_command(command);
+        sendCommand(command);
     }
 
-    private void validate_rgb(int r, int g, int b) {
+    /**
+     * Validates if the RGB values that are given to the method are valid RGB values
+     * @param r value of RED rgb value
+     * @param g value of GREEN rgb value
+     * @param b value of BLUE rgb value
+     */
+    private void validateRgb(int r, int g, int b) {
         if (LightConstants.MIN_RGB > r || LightConstants.MAX_RGB < r) {
             throw new IllegalArgumentException("Invalid RED value: " + r + " (value should be between 0-255)");
         } else if (LightConstants.MIN_RGB > g || LightConstants.MAX_RGB < g) {
@@ -188,26 +213,41 @@ public class LightController implements AutoCloseable {
         }
     }
 
-    private void validate_brightness(int brightness) {
+    /**
+     * Validates if the brightness value is a valid brightness value
+     * @param brightness brightness value
+     */
+    private void validateBrightness(int brightness) {
         if (LightConstants.MIN_BRIGHTNESS > brightness || LightConstants.MAX_BRIGHTNESS < brightness) {
             throw new IllegalArgumentException("Invalid BRIGHTNESS value: " + brightness + " (value should be between 10-100)");
         }
     }
 
-    private void validate_temperature(int temp) {
+    /**
+     * Validates if the temperature value is a valid temperature value
+     * @param temp temperature value
+     */
+    private void validateTemperature(int temp) {
         if (LightConstants.MIN_TEMP > temp || LightConstants.MAX_TEMP < temp) {
             throw new IllegalArgumentException("Invalid TEMP value: " + temp + " (value should be between 2200-6200");
         }
     }
 
+    /**
+     * Returns a string of the current status of the WIZ light
+     * @return pretty formatted String with status of WIZ light
+     */
     @Override
     public String toString() {
         return String.format("Light status: %s\nCurrent brightness: %d\n",
-                (is_light_on()) ? "ON" : "OFF", get_current_brightness());
+                (isLightOn()) ? "ON" : "OFF", getCurrentBrightness());
     }
 
+    /**
+     * Closes Socket once the program closes
+     */
     @Override
-    public void close() throws Exception {
+    public void close() {
         if (socket != null && !socket.isClosed()) {
             socket.close();
         }
