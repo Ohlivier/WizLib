@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class LightController {
+public class LightController implements AutoCloseable {
 
     private final DatagramSocket socket;
     private final InetAddress address;
@@ -18,9 +18,9 @@ public class LightController {
         objectMapper = new ObjectMapper();
         try {
             File ipJson = new File("lights.json");
-            WizLight light = objectMapper.readValue(ipJson, WizLight.class);
+            JsonNode ip = objectMapper.readTree(ipJson);
             socket = new DatagramSocket();
-            String LIGHT_IP = light.getIp();
+            String LIGHT_IP = ip.get("ip").asText();
             address = InetAddress.getByName(LIGHT_IP);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -31,10 +31,10 @@ public class LightController {
 
     private String send_command(String command) {
         byte[] buf = command.getBytes();
-        DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 38899);
+        DatagramPacket packet = new DatagramPacket(buf, buf.length, address, LightConstants.PORT);
         try {
             socket.send(packet);
-            byte[] receiveBuf = new byte[1024];
+            byte[] receiveBuf = new byte[LightConstants.RECEIVE_BUFFER_SIZE];
             packet = new DatagramPacket(receiveBuf, receiveBuf.length);
             socket.receive(packet);
         } catch (IOException e) {
@@ -100,11 +100,11 @@ public class LightController {
      * @param b The blue RGB value (0-255)
      */
     public void set_light_color(int r, int g, int b) {
-        if (0 > r || 255 < r) {
+        if (LightConstants.MIN_RGB > r || LightConstants.MAX_RGB < r) {
             throw new IndexOutOfBoundsException("Invalid RED value: " + r + " (value should be between 0-255)");
-        } else if (0 > g || 255 < g) {
+        } else if (LightConstants.MIN_RGB > g || LightConstants.MAX_RGB < g) {
             throw new IndexOutOfBoundsException("Invalid GREEN value: " + g + " (value should be between 0-255)");
-        } else if (0 > b || 255 < b) {
+        } else if (LightConstants.MIN_RGB > b || LightConstants.MAX_RGB < b) {
             throw new IndexOutOfBoundsException("Invalid BLUE value: " + b + " (value should be between 0-255)");
         }
 
@@ -121,13 +121,13 @@ public class LightController {
      * @param brightness The brightness (10-100)
      */
     public void set_light_color(int r, int g, int b, int brightness) {
-        if (0 > r || 255 < r) {
+        if (LightConstants.MIN_RGB > r || LightConstants.MAX_RGB < r) {
             throw new IndexOutOfBoundsException("Invalid RED value: " + r + " (value should be between 0-255)");
-        } else if (0 > g || 255 < g) {
+        } else if (LightConstants.MIN_RGB > g || LightConstants.MAX_RGB < g) {
             throw new IndexOutOfBoundsException("Invalid GREEN value: " + g + " (value should be between 0-255)");
-        } else if (0 > b || 255 < b) {
+        } else if (LightConstants.MIN_RGB > b || LightConstants.MAX_RGB < b) {
             throw new IndexOutOfBoundsException("Invalid BLUE value: " + b + " (value should be between 0-255)");
-        } else if (10 > brightness || 100 < brightness) {
+        } else if (LightConstants.MIN_BRIGHTNESS > brightness || LightConstants.MAX_BRIGHTNESS < brightness) {
             throw new IndexOutOfBoundsException("Invalid BRIGHTNESS value: " + brightness + " (value should be between 10-100)");
         }
 
@@ -142,7 +142,7 @@ public class LightController {
      * @param temp Temperature in kelvin (2200-6200)
      */
     public void set_light_kelvin(int temp) {
-        if (2200 > temp || 6200 < temp) {
+        if (LightConstants.MIN_TEMP > temp || LightConstants.MAX_TEMP < temp) {
             throw new IndexOutOfBoundsException("Invalid TEMP value: " + temp + " (value should be between 2200-6200");
         }
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"temp\":%d}}\n", temp);
@@ -157,12 +157,25 @@ public class LightController {
      * @param brightness The brightness (10-100)
      */
     public void set_light_kelvin_brightness(int temp, int brightness) {
-        if (2200 > temp || 6200 < temp) {
+        if (LightConstants.MIN_TEMP > temp || LightConstants.MAX_TEMP < temp) {
             throw new IndexOutOfBoundsException("Invalid TEMP value: " + temp + " (value should be between 2200-6200");
-        } else if (10 > brightness || 100 < brightness) {
+        } else if (LightConstants.MIN_BRIGHTNESS > brightness || LightConstants.MAX_BRIGHTNESS < brightness) {
             throw new IndexOutOfBoundsException("Invalid BRIGHTNESS value: " + brightness + " (value should be between 10-100)");
         }
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"temp\":%d,\"dimming\":%d}}\n", temp, brightness);
         send_command(command);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Light status: %s\nCurrent brightness: %d\n",
+                (is_light_on()) ? "ON" : "OFF", get_current_brightness());
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (socket != null && !socket.isClosed()) {
+            socket.close();
+        }
     }
 }
