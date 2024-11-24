@@ -1,22 +1,33 @@
+import java.io.File;
 import java.io.IOException;
 import java.net.*;
 
-import org.json.JSONObject;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class SendLightCommand {
+public class LightController {
 
     private final DatagramSocket socket;
     private final InetAddress address;
+    private final ObjectMapper objectMapper;
 
-    public SendLightCommand() {
+    public LightController() {
+        objectMapper = new ObjectMapper();
         try {
+            File ipJson = new File("lights.json");
+            WizLight light = objectMapper.readValue(ipJson, WizLight.class);
             socket = new DatagramSocket();
-            String LIGHT_IP = "192.168.0.186";
+            String LIGHT_IP = light.getIp();
             address = InetAddress.getByName(LIGHT_IP);
-        } catch (SocketException | UnknownHostException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
+
+
 
     private String send_command(String command) {
         byte[] buf = command.getBytes();
@@ -32,22 +43,29 @@ public class SendLightCommand {
         return new String(packet.getData(), 0, packet.getLength());
     }
 
+    private JsonNode create_jsonNode_from_status() {
+        try {
+            return objectMapper.readTree(get_light_status());
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     // TODO Delete this method
     public int get_current_brightness() {
-        JSONObject getBrightness = new JSONObject(get_light_status()).getJSONObject("result");
-        System.out.println(getBrightness);
-        return getBrightness.getInt("dimming");
+        JsonNode status = create_jsonNode_from_status();
+        return status.get("result").get("dimming").asInt();
     }
 
     public boolean is_light_on() {
-        JSONObject getStatus = new JSONObject(get_light_status()).getJSONObject("result");
-        return getStatus.getBoolean("state");
+        JsonNode status = create_jsonNode_from_status();
+        return status.get("result").get("state").asBoolean();
     }
 
     /**
      * Prints the current status of the WIZ light
      */
-    public String get_light_status() {
+    private String get_light_status() {
         return send_command("{\"method\":\"getPilot\",\"params\":{}}\n");
     }
 
