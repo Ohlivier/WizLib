@@ -1,0 +1,1 @@
+Credits: https://seanmcnally.net/wiz-config.html
