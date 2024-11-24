@@ -1,4 +1,9 @@
+import com.fasterxml.jackson.core.exc.StreamWriteException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import javax.management.InstanceNotFoundException;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -36,6 +41,7 @@ public class FindLight {
         }
 
         LOGGER.info("Found ip of WIZ light: " + ipLight);
+        setJson(ipLight);
     }
 
     private String findIP() throws InstanceNotFoundException {
@@ -133,5 +139,15 @@ public class FindLight {
             throw new RuntimeException(e);
         }
 
+    }
+
+    public void setJson(String ip) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        WizLight wizLight = new WizLight(ip);
+        try {
+            objectMapper.writeValue(new File("lights.json"), wizLight);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

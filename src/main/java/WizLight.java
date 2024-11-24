@@ -1,6 +1,12 @@
 public class WizLight {
 
-    private String ip = "0";
+
+
+    private String ip;
+
+    public WizLight(String ip) {
+        this.ip = ip;
+    }
 
     public String getIp() {
         return ip;
