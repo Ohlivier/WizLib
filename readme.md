@@ -4,7 +4,9 @@ Simple library to control WIZ lights on a local network
 ## How-To
 
 Use FindLight.java to find the IP address of the WIZ light on your local network
+
 FindLight.java will then write this IP address to lights.json
+
 After this LightController can be used to send commands to your local WIZ light
 
 ```java
