@@ -1,5 +1,3 @@
-import com.fasterxml.jackson.core.exc.StreamWriteException;
-import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.management.InstanceNotFoundException;
@@ -17,11 +15,17 @@ public class FindLight {
     private static final Logger LOGGER = Logger.getLogger(FindLight.class.getName());
     private static final String[] DEFAULT_SUBNETS = {"192.168.1", "192.168.0"};
     private static final int LOOKUP_TIMEOUT = 500;
+    private static final int DELAY_LIGHT_COLOR_SWITCH = 1000;
+
 
     Scanner in;
     private final ExecutorService executorService;
 
 
+    /**
+     * Created a threadpool with N number of threads.
+     * N is the amount of cores in the CPU of the computer where this program is ran on
+     */
     public FindLight() {
         this.in = new Scanner(System.in);
         this.executorService = Executors.newFixedThreadPool(
@@ -29,6 +33,9 @@ public class FindLight {
         );
     }
 
+    /**
+     * Calls the right methods for finding and setting the IP of the local WIZ light
+     */
     public void setup() {
         String ipLight;
         try {
@@ -44,6 +51,13 @@ public class FindLight {
         setJson(ipLight);
     }
 
+    /**
+     * Finds the IP of the WIZ light that's located on the local network
+     * This currently only finds the IP of one single WIZ light
+     *
+     * @return The IP of the WIZ light on the Local Network
+     * @throws InstanceNotFoundException throws whenever there couldn't be a WIZ light found on the local network
+     */
     private String findIP() throws InstanceNotFoundException {
         ArrayList<String> reachableHosts;
         try {
@@ -56,22 +70,28 @@ public class FindLight {
 
         for (String ip : reachableHosts) {
             try {
-                if (testLight(ip)) {
+                if (testLightColorSequence(ip)) {
                     return ip;
                 }
             } catch (Exception e) {
                 LOGGER.warning("Failed to test device at " + ip);
-                continue;
             }
         }
         throw new InstanceNotFoundException("No WIZ Light Found");
     }
 
-    public boolean testLight(String ip) {
+    /**
+     * Method to test a light, it first makes the WIZ light show a certain sequence of colors.
+     * Then it will ask the user for confirmation on this color sequence
+     *
+     * @param ip IP of the light to check
+     * @return True if the IP that was checked is the right ip
+     */
+    public boolean testLightColorSequence(String ip) {
         LOGGER.info("Testing light " + ip);
 
         try (LightController light = new LightController(ip)) {
-            testLight(light);
+            testLightColorSequence(light);
             return getUserConfirmation();
         } catch (Exception e) {
             LOGGER.warning("Failed to test light at " + ip + ": " + e.getMessage());
@@ -79,10 +99,14 @@ public class FindLight {
         }
     }
 
+    /**
+     * Uses multithreading to check all the IP's in DEFAULT_SUBNET for reachable devices.
+     *
+     * @return An ArrayList consisting of IP's of reachable devices
+     */
     public ArrayList<String> checkHosts() throws IOException {
         List<Future<String>> futures = new ArrayList<>();
         ArrayList<String> reachable = new ArrayList<>();
-
 
 
         for (String subnet : DEFAULT_SUBNETS) {
@@ -107,6 +131,12 @@ public class FindLight {
         return reachable;
     }
 
+    /**
+     * Checks if a host is reachable
+     *
+     * @param host IP of the host to check
+     * @return IP of host if it's reachable else it will return null
+     */
     private String checkHost(String host) {
         try {
             LOGGER.info("Checking host: " + host);
@@ -120,27 +150,42 @@ public class FindLight {
         return null;
     }
 
+    /**
+     * Asks the user for confirmation on whether their lights showed the right colors
+     *
+     * @return true or false depending on user input
+     */
     public boolean getUserConfirmation() {
         System.out.println("Did the light turn BLUE then GREEN then RED? (y/n)");
         String answer = in.nextLine();
         return answer.equalsIgnoreCase("y");
     }
 
-    public void testLight(LightController light) {
-        int DELAY = 1000;
+    /**
+     * Tests the LIGHT using a color sequence (RED, GREEN, BLUE)
+     * this is to check if the current ip is of the right light
+     *
+     * @param light Light to check
+     */
+    public void testLightColorSequence(LightController light) {
         try {
             light.set_light_color(0, 0, 255);  // Blue
-            Thread.sleep(DELAY);
+            Thread.sleep(DELAY_LIGHT_COLOR_SWITCH);
             light.set_light_color(0, 255, 0);  // Green
-            Thread.sleep(DELAY);
+            Thread.sleep(DELAY_LIGHT_COLOR_SWITCH);
             light.set_light_color(255, 0, 0);  // Red
-            Thread.sleep(DELAY);
+            Thread.sleep(DELAY_LIGHT_COLOR_SWITCH);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
 
     }
 
+    /**
+     * Sets the IP value in lights.json to the ip of the light
+     *
+     * @param ip The ip of the WIZ light
+     */
     public void setJson(String ip) {
         ObjectMapper objectMapper = new ObjectMapper();
         WizLight wizLight = new WizLight(ip);
