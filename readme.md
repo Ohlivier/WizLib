@@ -1,5 +1,5 @@
 # WizLib
-Simple library to control WIZ lights on a local network
+Simple Java library to control WIZ lights on a local network
 
 ## How-To
 
