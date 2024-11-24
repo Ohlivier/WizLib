@@ -3,22 +3,26 @@ import java.io.IOException;
 import java.net.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.exc.StreamReadException;
-import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 public class LightController implements AutoCloseable {
 
+    private static final Logger logger = LoggerFactory.getLogger(LightController.class);
     private final DatagramSocket socket;
     private final InetAddress address;
     private final ObjectMapper objectMapper;
 
     public LightController() {
+        this(new File("lights.json"));
+    }
+
+    public LightController(File jsonIpFile) {
         objectMapper = new ObjectMapper();
         try {
-            File ipJson = new File("lights.json");
-            JsonNode ip = objectMapper.readTree(ipJson);
+            JsonNode ip = objectMapper.readTree(jsonIpFile);
             socket = new DatagramSocket();
             String LIGHT_IP = ip.get("ip").asText();
             address = InetAddress.getByName(LIGHT_IP);
@@ -26,7 +30,6 @@ public class LightController implements AutoCloseable {
             throw new RuntimeException(e);
         }
     }
-
 
 
     private String send_command(String command) {
@@ -51,14 +54,30 @@ public class LightController implements AutoCloseable {
         }
     }
 
-    // TODO Delete this method
+    /**
+     * Returns the current brightness of the WIZ light, returns 0 if the light is off
+     *
+     * @return current brightness of the WIZ light (10-100)
+     */
     public int get_current_brightness() {
-        JsonNode status = create_jsonNode_from_status();
-        return status.get("result").get("dimming").asInt();
+        if (!is_light_on()) {
+            return 0;
+        } else {
+            JsonNode status = create_jsonNode_from_status();
+            return status.get("result").get("dimming").asInt();
+        }
     }
 
+    /**
+     * Returns the current state of the WIZ Light
+     * true: ON
+     * false: OFF
+     *
+     * @return current state of WIZ light (boolean)
+     */
     public boolean is_light_on() {
         JsonNode status = create_jsonNode_from_status();
+        logger.info("Light turned on");
         return status.get("result").get("state").asBoolean();
     }
 
@@ -88,6 +107,7 @@ public class LightController implements AutoCloseable {
             System.out.println("Light is not on, cannot currently change the brightness");
             return;
         }
+
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"dimming\":%d}}", brightness);
         send_command(command);
     }
@@ -100,13 +120,7 @@ public class LightController implements AutoCloseable {
      * @param b The blue RGB value (0-255)
      */
     public void set_light_color(int r, int g, int b) {
-        if (LightConstants.MIN_RGB > r || LightConstants.MAX_RGB < r) {
-            throw new IndexOutOfBoundsException("Invalid RED value: " + r + " (value should be between 0-255)");
-        } else if (LightConstants.MIN_RGB > g || LightConstants.MAX_RGB < g) {
-            throw new IndexOutOfBoundsException("Invalid GREEN value: " + g + " (value should be between 0-255)");
-        } else if (LightConstants.MIN_RGB > b || LightConstants.MAX_RGB < b) {
-            throw new IndexOutOfBoundsException("Invalid BLUE value: " + b + " (value should be between 0-255)");
-        }
+        validate_rgb(r, g, b);
 
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"r\":%d,\"g\":%d,\"b\":%d}}", r, g, b);
         send_command(command);
@@ -121,15 +135,8 @@ public class LightController implements AutoCloseable {
      * @param brightness The brightness (10-100)
      */
     public void set_light_color(int r, int g, int b, int brightness) {
-        if (LightConstants.MIN_RGB > r || LightConstants.MAX_RGB < r) {
-            throw new IndexOutOfBoundsException("Invalid RED value: " + r + " (value should be between 0-255)");
-        } else if (LightConstants.MIN_RGB > g || LightConstants.MAX_RGB < g) {
-            throw new IndexOutOfBoundsException("Invalid GREEN value: " + g + " (value should be between 0-255)");
-        } else if (LightConstants.MIN_RGB > b || LightConstants.MAX_RGB < b) {
-            throw new IndexOutOfBoundsException("Invalid BLUE value: " + b + " (value should be between 0-255)");
-        } else if (LightConstants.MIN_BRIGHTNESS > brightness || LightConstants.MAX_BRIGHTNESS < brightness) {
-            throw new IndexOutOfBoundsException("Invalid BRIGHTNESS value: " + brightness + " (value should be between 10-100)");
-        }
+        validate_rgb(r, g, b);
+        validate_brightness(brightness);
 
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"r\":%d,\"g\":%d,\"b\":%d,\"dimming\": %d}}", r, g, b, brightness);
         send_command(command);
@@ -142,9 +149,8 @@ public class LightController implements AutoCloseable {
      * @param temp Temperature in kelvin (2200-6200)
      */
     public void set_light_kelvin(int temp) {
-        if (LightConstants.MIN_TEMP > temp || LightConstants.MAX_TEMP < temp) {
-            throw new IndexOutOfBoundsException("Invalid TEMP value: " + temp + " (value should be between 2200-6200");
-        }
+        validate_temperature(temp);
+
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"temp\":%d}}\n", temp);
         send_command(command);
     }
@@ -157,13 +163,33 @@ public class LightController implements AutoCloseable {
      * @param brightness The brightness (10-100)
      */
     public void set_light_kelvin_brightness(int temp, int brightness) {
-        if (LightConstants.MIN_TEMP > temp || LightConstants.MAX_TEMP < temp) {
-            throw new IndexOutOfBoundsException("Invalid TEMP value: " + temp + " (value should be between 2200-6200");
-        } else if (LightConstants.MIN_BRIGHTNESS > brightness || LightConstants.MAX_BRIGHTNESS < brightness) {
-            throw new IndexOutOfBoundsException("Invalid BRIGHTNESS value: " + brightness + " (value should be between 10-100)");
-        }
+        validate_temperature(temp);
+        validate_brightness(brightness);
+
         String command = String.format("{\"id\":1,\"method\":\"setPilot\",\"params\":{\"temp\":%d,\"dimming\":%d}}\n", temp, brightness);
         send_command(command);
+    }
+
+    private void validate_rgb(int r, int g, int b) {
+        if (LightConstants.MIN_RGB > r || LightConstants.MAX_RGB < r) {
+            throw new IllegalArgumentException("Invalid RED value: " + r + " (value should be between 0-255)");
+        } else if (LightConstants.MIN_RGB > g || LightConstants.MAX_RGB < g) {
+            throw new IllegalArgumentException("Invalid GREEN value: " + g + " (value should be between 0-255)");
+        } else if (LightConstants.MIN_RGB > b || LightConstants.MAX_RGB < b) {
+            throw new IllegalArgumentException("Invalid BLUE value: " + b + " (value should be between 0-255)");
+        }
+    }
+
+    private void validate_brightness(int brightness) {
+        if (LightConstants.MIN_BRIGHTNESS > brightness || LightConstants.MAX_BRIGHTNESS < brightness) {
+            throw new IllegalArgumentException("Invalid BRIGHTNESS value: " + brightness + " (value should be between 10-100)");
+        }
+    }
+
+    private void validate_temperature(int temp) {
+        if (LightConstants.MIN_TEMP > temp || LightConstants.MAX_TEMP < temp) {
+            throw new IllegalArgumentException("Invalid TEMP value: " + temp + " (value should be between 2200-6200");
+        }
     }
 
     @Override
