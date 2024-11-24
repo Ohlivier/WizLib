@@ -70,7 +70,7 @@ public class FindLight {
 
         for (String ip : reachableHosts) {
             try {
-                if (testLightColorSequence(ip)) {
+                if (testLight(ip)) {
                     return ip;
                 }
             } catch (Exception e) {
@@ -87,7 +87,7 @@ public class FindLight {
      * @param ip IP of the light to check
      * @return True if the IP that was checked is the right ip
      */
-    public boolean testLightColorSequence(String ip) {
+    public boolean testLight(String ip) {
         LOGGER.info("Testing light " + ip);
 
         try (LightController light = new LightController(ip)) {
